@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from data_project.http_client import ApiError, get_json
+from energy_lakehouse.http_client import ApiError, get_json
 
 BASE = "https://api.test"
 

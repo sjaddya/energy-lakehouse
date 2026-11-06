@@ -1,5 +1,5 @@
 [project]
-name = "data-project"
+name = "energy-lakehouse"
 version = "0.1.0"
 description = "One-line description of what this project does and for whom."
 readme = "README.md"
@@ -25,7 +25,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/data_project"]
+packages = ["src/energy_lakehouse"]
 
 # ---------------------------------------------------------------- ruff
 [tool.ruff]
@@ -51,7 +51,7 @@ files = ["src", "tests"]
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --cov=data_project --cov-report=term-missing"
+addopts = "-ra --strict-markers --cov=energy_lakehouse --cov-report=term-missing"
 markers = [
     "integration: needs real services (network, Docker); skipped in the default run",
 ]

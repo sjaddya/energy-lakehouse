@@ -7,7 +7,7 @@ Replace the URL with the project's real API once it exists.
 import httpx
 import pytest
 
-from data_project.http_client import get_json
+from energy_lakehouse.http_client import get_json
 
 
 @pytest.mark.integration

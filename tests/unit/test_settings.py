@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from data_project.settings import get_settings
+from energy_lakehouse.settings import get_settings
 
 
 def test_defaults_when_nothing_is_set(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
