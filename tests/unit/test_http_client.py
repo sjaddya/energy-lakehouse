@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from energy_lakehouse.http_client import ApiError, get_json
+from energy_lakehouse.http_client import ApiError, NotFoundError, get_json
 
 BASE = "https://api.test"
 
@@ -55,12 +55,22 @@ def test_backoff_doubles_between_attempts(client: httpx.Client, no_real_sleep: l
     assert no_real_sleep == [1.0, 2.0]
 
 
-@pytest.mark.parametrize("status", [400, 401, 404])
+@pytest.mark.parametrize("status", [400, 401])
 @respx.mock
 def test_does_not_retry_permanent_errors(client: httpx.Client, status: int) -> None:
     route = respx.get(f"{BASE}/items").mock(return_value=httpx.Response(status))
 
     with pytest.raises(ApiError, match="permanently"):
+        get_json(client, "/items")
+
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_404_raises_not_found_and_does_not_retry(client: httpx.Client) -> None:
+    route = respx.get(f"{BASE}/items").mock(return_value=httpx.Response(404))
+
+    with pytest.raises(NotFoundError, match="404"):
         get_json(client, "/items")
 
     assert route.call_count == 1
