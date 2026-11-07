@@ -21,6 +21,10 @@ class ApiError(RuntimeError):
     """Raised when the API keeps failing or returns a permanent error."""
 
 
+class NotFoundError(ApiError):
+    """The URL returns 404 - the resource does not exist."""
+
+
 def get_json(
     client: httpx.Client,
     path: str,
@@ -42,6 +46,8 @@ def get_json(
         else:
             if response.status_code < 400:
                 return response.json()
+            if response.status_code == 404:
+                raise NotFoundError(f"GET {path} failed with HTTP 404")
             if response.status_code not in RETRYABLE_STATUS:
                 raise ApiError(f"GET {path} failed permanently with HTTP {response.status_code}")
             reason = f"HTTP {response.status_code}"
