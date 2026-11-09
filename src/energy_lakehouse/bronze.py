@@ -9,7 +9,7 @@ and gold layers of the lakehouse architecture.
 from datetime import datetime
 from typing import Any
 
-from energy_lakehouse.smard import SeriesPoint
+from energy_lakehouse.smard import SeriesPoint, chunks_for_window
 
 
 def bronze_rows(
@@ -31,3 +31,20 @@ def bronze_rows(
         for point in points
     ]
     return data
+
+
+def chunks_to_fetch(
+    index: list[int], high_water_mark: int | None, start: datetime, end: datetime
+) -> list[int]:
+    """Given a list of chunk ids, return the ones that need to be fetched.
+
+    The caller has already fetched all chunks up to high_water_mark, so we only
+    need to fetch chunks with id > high_water_mark. If high_water_mark is None,
+    we have never fetched anything, so we need to fetch everything.
+
+    We also filter out chunks that are outside the requested time range.
+    """
+    if high_water_mark is None:
+        return chunks_for_window(index, start, end)
+    else:
+        return [chunk for chunk in index if chunk >= high_water_mark]

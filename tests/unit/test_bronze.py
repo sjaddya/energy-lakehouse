@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from energy_lakehouse.bronze import bronze_rows
-from energy_lakehouse.smard import parse_chunk
+from energy_lakehouse.bronze import bronze_rows, chunks_to_fetch
+from energy_lakehouse.smard import chunks_for_window, parse_chunk
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -17,6 +17,13 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 SOURCE_CHUNK = 1789336800000
 LOAD_ID = "test-load"
 FETCHED_AT = datetime(2026, 11, 9, tzinfo=UTC)
+
+# Five consecutive weeks, built from a real chunk id so the dates are plausible:
+# 2026-11-01 23:00 UTC is Monday 02.11 00:00 Berlin on winter time.
+WEEK_MS = 7 * 24 * 60 * 60 * 1000
+INDEX = [1793574000000 + week * WEEK_MS for week in range(5)]
+WINDOW_START = datetime(2026, 11, 10, tzinfo=UTC)
+WINDOW_END = datetime(2026, 11, 20, tzinfo=UTC)
 
 BRONZE_COLUMNS = {
     "filter_id",
@@ -104,3 +111,35 @@ def test_nulls_are_kept() -> None:
 def test_empty_input_gives_no_rows() -> None:
     """An empty series must not raise; it just contributes nothing to the table."""
     assert bronze_rows([], SOURCE_CHUNK, LOAD_ID, FETCHED_AT) == []
+
+
+def test_first_run_uses_the_whole_window() -> None:
+    """With no mark there is nothing to be incremental about."""
+    assert chunks_to_fetch(INDEX, None, WINDOW_START, WINDOW_END) == INDEX[1:3]
+
+
+def test_first_run_delegates_to_the_window_rule() -> None:
+    """The overlap rule must live in one place, not be copied into this function."""
+    assert chunks_to_fetch(INDEX, None, WINDOW_START, WINDOW_END) == chunks_for_window(
+        INDEX, WINDOW_START, WINDOW_END
+    )
+
+
+def test_caught_up_fetches_only_the_newest_week() -> None:
+    """The point of the step: 70 downloads a run become 5."""
+    assert chunks_to_fetch(INDEX, INDEX[-1], WINDOW_START, WINDOW_END) == [INDEX[-1]]
+
+
+def test_the_marked_week_is_fetched_again() -> None:
+    """Its later hours were still null last time, so it is not finished with."""
+    assert chunks_to_fetch(INDEX, INDEX[2], WINDOW_START, WINDOW_END)[0] == INDEX[2]
+
+
+def test_every_week_after_the_mark_comes_too() -> None:
+    """A run skipped for three weeks must catch up, not fetch only the newest."""
+    assert chunks_to_fetch(INDEX, INDEX[2], WINDOW_START, WINDOW_END) == INDEX[2:]
+
+
+def test_a_mark_that_is_not_a_chunk_id() -> None:
+    """A mark one second past a week's start takes the weeks after it."""
+    assert chunks_to_fetch(INDEX, INDEX[2] + 1000, WINDOW_START, WINDOW_END) == INDEX[3:]
