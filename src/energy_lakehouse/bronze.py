@@ -6,10 +6,43 @@ The bronze layer serves as the foundation for further processing and transformat
 and gold layers of the lakehouse architecture.
 """
 
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from energy_lakehouse.smard import SeriesPoint, chunks_for_window
+
+
+@dataclass(frozen=True)
+class LoadWindow:
+    start: datetime
+    end: datetime
+    is_backfill: bool
+
+
+def load_window(
+    backfill_start: str | None, backfill_end: str | None, now: datetime, days_back: int
+) -> LoadWindow:
+    """Which window this run loads, and whether it is a backfill.
+
+    Both dates or neither. A date is "YYYY-MM-DD" and is read as UTC. The end
+    date is inclusive, so one day is added to it: "2026-01-31" covers all of
+    31 January. With no dates the window is the last `days_back` days, which is
+    the normal scheduled run.
+    """
+    if not backfill_start and not backfill_end:
+        return LoadWindow(start=now - timedelta(days=days_back), end=now, is_backfill=False)
+
+    if not backfill_start or not backfill_end:
+        raise ValueError("give both backfill_start and backfill_end, or neither")
+
+    start = datetime.fromisoformat(backfill_start).replace(tzinfo=UTC)
+    end = datetime.fromisoformat(backfill_end).replace(tzinfo=UTC) + timedelta(days=1)
+
+    if start >= end:
+        raise ValueError(f"backfill_start {backfill_start} is not before {backfill_end}")
+
+    return LoadWindow(start=start, end=end, is_backfill=True)
 
 
 def bronze_rows(
