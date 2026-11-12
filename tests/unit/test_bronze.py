@@ -7,7 +7,8 @@ from typing import Any
 
 import pytest
 
-from energy_lakehouse.bronze import bronze_rows, chunks_to_fetch, load_window
+from energy_lakehouse.bronze import bronze_rows, bronze_weather_rows, chunks_to_fetch, load_window
+from energy_lakehouse.dwd import WeatherReading
 from energy_lakehouse.smard import chunks_for_window, parse_chunk
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -195,3 +196,88 @@ def test_only_an_end_date_is_rejected() -> None:
 def test_a_start_after_the_end_is_rejected() -> None:
     with pytest.raises(ValueError, match="not before"):
         load_window("2026-03-01", "2026-02-01", NOW, 90)
+
+
+SOURCE_FILE = (
+    "/climate_environment/CDC/observations_germany/climate/hourly"
+    "/wind/recent/stundenwerte_FF_00183_akt.zip"
+)
+
+WEATHER_COLUMNS = {
+    "station_id",
+    "timestamp_utc",
+    "parameter",
+    "value",
+    "quality",
+    "source_file",
+    "load_id",
+    "fetched_at",
+}
+
+
+@pytest.fixture
+def readings() -> list[WeatherReading]:
+    return [
+        WeatherReading(
+            station_id="00183",
+            timestamp=datetime(2026, 11, 4, 22, tzinfo=UTC),
+            parameter="wind_speed_ms",
+            value=8.7,
+            quality=1,
+        ),
+        WeatherReading(
+            station_id="00183",
+            timestamp=datetime(2026, 11, 4, 22, tzinfo=UTC),
+            parameter="wind_direction_deg",
+            value=None,
+            quality=None,
+        ),
+    ]
+
+
+def test_one_row_per_reading(readings: list[WeatherReading]) -> None:
+    rows = bronze_weather_rows(readings, SOURCE_FILE, LOAD_ID, FETCHED_AT)
+
+    assert len(rows) == len(readings)
+
+
+def test_every_weather_row_has_exactly_the_table_columns(readings: list[WeatherReading]) -> None:
+    rows = bronze_weather_rows(readings, SOURCE_FILE, LOAD_ID, FETCHED_AT)
+
+    assert all(set(row.keys()) == WEATHER_COLUMNS for row in rows)
+
+
+def test_the_measurement_is_copied_unchanged(readings: list[WeatherReading]) -> None:
+    rows = bronze_weather_rows(readings, SOURCE_FILE, LOAD_ID, FETCHED_AT)
+
+    assert rows[0]["station_id"] == "00183"
+    assert rows[0]["timestamp_utc"] == datetime(2026, 11, 4, 22, tzinfo=UTC)
+    assert rows[0]["parameter"] == "wind_speed_ms"
+    assert rows[0]["value"] == 8.7
+    assert rows[0]["quality"] == 1
+
+
+def test_a_missing_value_stays_null(readings: list[WeatherReading]) -> None:
+    rows = bronze_weather_rows(readings, SOURCE_FILE, LOAD_ID, FETCHED_AT)
+
+    assert rows[1]["value"] is None
+    assert rows[1]["quality"] is None
+
+
+def test_the_ingestion_metadata_is_on_every_weather_row(readings: list[WeatherReading]) -> None:
+    rows = bronze_weather_rows(readings, SOURCE_FILE, LOAD_ID, FETCHED_AT)
+
+    assert all(row["source_file"] == SOURCE_FILE for row in rows)
+    assert all(row["load_id"] == LOAD_ID for row in rows)
+    assert all(row["fetched_at"] == FETCHED_AT for row in rows)
+
+
+def test_no_readings_gives_no_rows() -> None:
+    assert bronze_weather_rows([], SOURCE_FILE, LOAD_ID, FETCHED_AT) == []
+
+
+def test_the_merge_key_is_unique_within_one_file(readings: list[WeatherReading]) -> None:
+    rows = bronze_weather_rows(readings, SOURCE_FILE, LOAD_ID, FETCHED_AT)
+    keys = [(row["station_id"], row["timestamp_utc"], row["parameter"]) for row in rows]
+
+    assert len(set(keys)) == len(keys)

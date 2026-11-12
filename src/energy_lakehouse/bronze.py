@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from energy_lakehouse.dwd import WeatherReading
 from energy_lakehouse.smard import SeriesPoint, chunks_for_window
 
 
@@ -81,3 +82,26 @@ def chunks_to_fetch(
         return chunks_for_window(index, start, end)
     else:
         return [chunk for chunk in index if chunk >= high_water_mark]
+
+
+def bronze_weather_rows(
+    readings: list[WeatherReading],
+    source_file: str,
+    load_id: str,
+    fetched_at: datetime,
+) -> list[dict[str, Any]]:
+    """One dictionary per reading, with the ingestion metadata attached."""
+    data: list[dict[str, Any]] = [
+        {
+            "station_id": reading.station_id,
+            "timestamp_utc": reading.timestamp,
+            "parameter": reading.parameter,
+            "value": reading.value,
+            "quality": reading.quality,
+            "source_file": source_file,
+            "load_id": load_id,
+            "fetched_at": fetched_at,
+        }
+        for reading in readings
+    ]
+    return data
