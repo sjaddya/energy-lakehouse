@@ -1,9 +1,13 @@
-"""Example: a small, robust JSON client. Keep, adapt, or delete per project.
+"""A small, robust HTTP client. Shared by every ingestion source in the project.
 
-It shows the three things every ingestion client in the projects needs:
-a timeout on every request, retries with backoff for temporary failures
-(HTTP 429 and 5xx, network errors), and no retry for permanent ones (other 4xx),
-because retrying a bad request only hides the bug.
+It gives three things every client here needs: a timeout on every request,
+retries with backoff for temporary failures (HTTP 429 and 5xx, network errors),
+and no retry for permanent ones (other 4xx), because retrying a bad request
+only hides the bug.
+
+Both public functions go through one private `_fetch`, so the retry rules exist
+in exactly one place. `get_json` decodes a JSON body; `get_bytes` returns the
+raw body unchanged, which is what a ZIP archive needs.
 """
 
 import logging
@@ -25,15 +29,15 @@ class NotFoundError(ApiError):
     """The URL returns 404 - the resource does not exist."""
 
 
-def get_json(
+def _fetch(
     client: httpx.Client,
     path: str,
     params: dict[str, Any] | None = None,
     *,
     max_attempts: int = 3,
     backoff_seconds: float = 1.0,
-) -> Any:
-    """GET `path` and return the decoded JSON body.
+) -> httpx.Response:
+    """GET `path` and return the successful response, whatever its body type.
 
     Retries temporary failures up to `max_attempts` times, waiting
     backoff_seconds, then 2x, then 4x between attempts.
@@ -45,7 +49,7 @@ def get_json(
             reason = f"{type(exc).__name__}: {exc}"
         else:
             if response.status_code < 400:
-                return response.json()
+                return response
             if response.status_code == 404:
                 raise NotFoundError(f"GET {path} failed with HTTP 404")
             if response.status_code not in RETRYABLE_STATUS:
@@ -66,6 +70,44 @@ def get_json(
         time.sleep(wait)
 
     raise AssertionError("unreachable")  # pragma: no cover
+
+
+def get_json(
+    client: httpx.Client,
+    path: str,
+    params: dict[str, Any] | None = None,
+    *,
+    max_attempts: int = 3,
+    backoff_seconds: float = 1.0,
+) -> Any:
+    """GET `path` and return the decoded JSON body."""
+    response = _fetch(
+        client,
+        path,
+        params,
+        max_attempts=max_attempts,
+        backoff_seconds=backoff_seconds,
+    )
+    return response.json()
+
+
+def get_bytes(
+    client: httpx.Client,
+    path: str,
+    params: dict[str, Any] | None = None,
+    *,
+    max_attempts: int = 3,
+    backoff_seconds: float = 1.0,
+) -> bytes:
+    """GET `path` and return the raw body, undecoded - for ZIP archives and other binaries."""
+    response = _fetch(
+        client,
+        path,
+        params,
+        max_attempts=max_attempts,
+        backoff_seconds=backoff_seconds,
+    )
+    return response.content
 
 
 def make_client(base_url: str, timeout_seconds: float = 10.0) -> httpx.Client:

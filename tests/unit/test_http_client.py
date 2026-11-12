@@ -4,9 +4,10 @@ import httpx
 import pytest
 import respx
 
-from energy_lakehouse.http_client import ApiError, NotFoundError, get_json
+from energy_lakehouse.http_client import ApiError, NotFoundError, get_bytes, get_json
 
 BASE = "https://api.test"
+ZIP_MAGIC = b"PK\x03\x04"
 
 
 @pytest.fixture
@@ -83,3 +84,33 @@ def test_retries_network_timeouts(client: httpx.Client) -> None:
     )
 
     assert get_json(client, "/items") == [1]
+
+
+@respx.mock
+def test_get_bytes_returns_the_body_unchanged(client: httpx.Client) -> None:
+    body = ZIP_MAGIC + b"not really a zip, but the right first four bytes"
+    respx.get(f"{BASE}/archive.zip").mock(return_value=httpx.Response(200, content=body))
+
+    assert get_bytes(client, "/archive.zip") == body
+
+
+@respx.mock
+def test_get_bytes_404_raises_not_found_and_does_not_retry(client: httpx.Client) -> None:
+    route = respx.get(f"{BASE}/missing.zip").mock(return_value=httpx.Response(404))
+
+    with pytest.raises(NotFoundError, match="404"):
+        get_bytes(client, "/missing.zip")
+
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_get_bytes_retries_temporary_errors(
+    client: httpx.Client, no_real_sleep: list[float]
+) -> None:
+    respx.get(f"{BASE}/archive.zip").mock(
+        side_effect=[httpx.Response(503), httpx.Response(200, content=ZIP_MAGIC)]
+    )
+
+    assert get_bytes(client, "/archive.zip", backoff_seconds=0.5) == ZIP_MAGIC
+    assert no_real_sleep == [0.5]
