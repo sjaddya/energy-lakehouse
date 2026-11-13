@@ -33,6 +33,7 @@ packages = ["src/energy_lakehouse"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 # E/W pycodestyle, F pyflakes, I import order, B bugbear, UP pyupgrade,
