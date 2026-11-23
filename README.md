@@ -6,8 +6,9 @@
 > weather produced them? An hourly pipeline over Bundesnetzagentur (SMARD) market data and
 > Deutscher Wetterdienst (DWD) weather observations.
 
-**Status:** in development. The sources are researched, the design is fixed and documented
-in [`docs/`](docs/); ingestion is the next step. No results are published yet.
+**Status:** in development. Ingestion and the silver layer are built and running on Databricks
+over an `energy` catalog — see [`docs/data-dictionary.md`](docs/data-dictionary.md) for every
+table and column. Gold, orchestration and the dashboard are next; no results are published yet.
 
 ---
 

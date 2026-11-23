@@ -1,7 +1,7 @@
 [project]
 name = "energy-lakehouse"
 version = "0.1.0"
-description = "One-line description of what this project does and for whom."
+description = "Hourly lakehouse over SMARD electricity-market and DWD weather data, for anyone asking how much cheaper German power is in windy, sunny hours."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
