@@ -23,6 +23,14 @@ htmlcov/
 data/*
 !data/.gitkeep
 
+# dbt: build artefacts and logs, never the project files
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+# dbt writes a machine-local id here for its anonymous usage stats. It is
+# per laptop, not per project, so it would conflict on any other machine.
+dbt/.user.yml
+
 # Editors / OS
 .vscode/
 .idea/

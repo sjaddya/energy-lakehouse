@@ -1,0 +1,41 @@
+name: energy_lakehouse
+version: "0.1.0"
+
+# Which profile in profiles.yml says where to connect. The catalog and schema
+# live there, not here, so the same models can be built against a different
+# catalog by changing one file that holds no SQL.
+profile: energy_lakehouse
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  energy_lakehouse:
+    # Silver is a deterministic function of bronze, so every model is rebuilt in
+    # full on each run. This is dbt's default materialisation and it is exactly
+    # what the notebooks already did with CREATE OR REPLACE TABLE.
+    +materialized: table
+
+seeds:
+  energy_lakehouse:
+    # Lookups are not a medallion layer, so they get their own schema. The
+    # generate_schema_name macro makes this the literal schema name.
+    +schema: reference
+    series_lookup:
+      +column_types:
+        filter_id: int
+        series_name: string
+        series_group: string
+        unit: string
+    station_lookup:
+      +column_types:
+        # Without this, 00183 is read as the number 183 and never joins to
+        # anything. The leading zero is part of the id, not formatting.
+        station_id: string
+        station_name: string
+        state: string

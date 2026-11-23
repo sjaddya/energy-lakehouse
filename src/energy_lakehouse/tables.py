@@ -11,7 +11,11 @@ moving a layer, is one edit in one tested file.
 Layers are schemas inside one catalog, and the catalog is per project rather
 than per layer: a second project gets its own catalog instead of competing for
 `bronze`. In production the same shape would be one catalog per environment -
-`energy_dev`, `energy_prod` - holding the same three schemas.
+`energy_dev`, `energy_prod` - holding the same schemas.
+
+`reference` sits beside the three layers rather than inside them. It holds the
+static lookups dbt loads from seed files, which are neither ingested like bronze
+nor derived like silver.
 """
 
 CATALOG = "energy"
@@ -20,7 +24,12 @@ BRONZE_SCHEMA = f"{CATALOG}.bronze"
 SILVER_SCHEMA = f"{CATALOG}.silver"
 GOLD_SCHEMA = f"{CATALOG}.gold"
 
-SCHEMAS = (BRONZE_SCHEMA, SILVER_SCHEMA, GOLD_SCHEMA)
+# Static lookups are not a medallion layer: nothing ingests them and nothing
+# derives them. They sit in their own schema so bronze, silver and gold keep
+# meaning exactly what their comments say.
+REFERENCE_SCHEMA = f"{CATALOG}.reference"
+
+SCHEMAS = (BRONZE_SCHEMA, SILVER_SCHEMA, GOLD_SCHEMA, REFERENCE_SCHEMA)
 
 SMARD_RAW = f"{BRONZE_SCHEMA}.smard_raw"
 DWD_RAW = f"{BRONZE_SCHEMA}.dwd_raw"
@@ -29,6 +38,10 @@ POWER_HOURLY = f"{SILVER_SCHEMA}.power_hourly"
 WEATHER_STATION_HOURLY = f"{SILVER_SCHEMA}.weather_station_hourly"
 WEATHER_GERMANY_HOURLY = f"{SILVER_SCHEMA}.weather_germany_hourly"
 
+SERIES_LOOKUP = f"{REFERENCE_SCHEMA}.series_lookup"
+STATION_LOOKUP = f"{REFERENCE_SCHEMA}.station_lookup"
+
 BRONZE_TABLES = (SMARD_RAW, DWD_RAW)
 SILVER_TABLES = (POWER_HOURLY, WEATHER_STATION_HOURLY, WEATHER_GERMANY_HOURLY)
-ALL_TABLES = BRONZE_TABLES + SILVER_TABLES
+REFERENCE_TABLES = (SERIES_LOOKUP, STATION_LOOKUP)
+ALL_TABLES = BRONZE_TABLES + SILVER_TABLES + REFERENCE_TABLES

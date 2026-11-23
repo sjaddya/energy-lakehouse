@@ -3,7 +3,7 @@
 # Tools are invoked as `python -m <tool>` rather than through the generated
 # .exe launchers, which Windows Smart App Control blocks inside a virtualenv.
 
-.PHONY: setup lint format typecheck test test-all check clean
+.PHONY: setup lint format typecheck test test-all check clean dbt-debug dbt-run
 
 setup:        ## install dependencies and the git hooks
 	uv sync
@@ -25,6 +25,12 @@ test:         ## unit tests (fast, no network)
 
 test-all:     ## unit + integration tests (needs network / services)
 	uv run python -m pytest --run-integration
+
+dbt-debug:    ## check dbt can reach Databricks
+	uv run python -m dbt.cli.main debug --project-dir dbt --profiles-dir dbt
+
+dbt-run:      ## build the silver models
+	uv run python -m dbt.cli.main run --project-dir dbt --profiles-dir dbt
 
 check: lint typecheck test   ## everything CI runs
 

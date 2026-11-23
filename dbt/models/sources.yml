@@ -1,0 +1,38 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    description: >
+      Raw source data as published, loaded by the ingestion notebooks. dbt only
+      reads these tables: nothing in this project builds them, and declaring
+      them as sources rather than hard-coding the names is what makes the
+      dependency show up in the lineage graph.
+    tables:
+      - name: smard_raw
+        description: >
+          One row per SMARD series and hour, merged on (filter_id,
+          timestamp_utc). Source: Bundesnetzagentur | SMARD.de, CC BY 4.0.
+        columns:
+          - name: filter_id
+            description: SMARD series id; resolved to a name through the series_lookup seed.
+          - name: timestamp_utc
+            description: Start of the hour the value applies to, in UTC, as SMARD publishes it.
+          - name: value
+            description: >
+              Null where SMARD has padded the current week ahead of publication,
+              which is why count(*) and count(value) differ.
+      - name: dwd_raw
+        description: >
+          One row per station, hour and parameter, merged on (station_id,
+          timestamp_utc, parameter). Datenbasis: Deutscher Wetterdienst,
+          Einzelwerte gemittelt. CC BY 4.0.
+        columns:
+          - name: station_id
+            description: Five-digit DWD station id, zero padded.
+          - name: timestamp_utc
+            description: >
+              The hour as DWD labels it, which is the hour END. The silver model
+              shifts it back one hour to match the SMARD hour start.
+          - name: parameter
+            description: wind_speed_ms, wind_direction_deg or sunshine_minutes.

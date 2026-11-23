@@ -6,6 +6,8 @@ from energy_lakehouse.tables import (
     BRONZE_TABLES,
     CATALOG,
     GOLD_SCHEMA,
+    REFERENCE_SCHEMA,
+    REFERENCE_TABLES,
     SCHEMAS,
     SILVER_SCHEMA,
     SILVER_TABLES,
@@ -30,12 +32,20 @@ def test_every_name_sits_in_the_one_catalog() -> None:
 
 def test_the_layers_are_separate_schemas() -> None:
     assert len(set(SCHEMAS)) == len(SCHEMAS)
-    assert BRONZE_SCHEMA != SILVER_SCHEMA != GOLD_SCHEMA
+    assert BRONZE_SCHEMA != SILVER_SCHEMA != GOLD_SCHEMA != REFERENCE_SCHEMA
 
 
 def test_each_table_sits_in_the_layer_it_belongs_to() -> None:
     assert all(name.startswith(f"{BRONZE_SCHEMA}.") for name in BRONZE_TABLES)
     assert all(name.startswith(f"{SILVER_SCHEMA}.") for name in SILVER_TABLES)
+    assert all(name.startswith(f"{REFERENCE_SCHEMA}.") for name in REFERENCE_TABLES)
+
+
+def test_reference_is_not_one_of_the_medallion_layers() -> None:
+    # It holds seeds: nothing ingests them and nothing derives them. Keeping
+    # them out of silver is what lets the silver comment stay true.
+    assert REFERENCE_SCHEMA not in (BRONZE_SCHEMA, SILVER_SCHEMA, GOLD_SCHEMA)
+    assert REFERENCE_SCHEMA in SCHEMAS
 
 
 def test_no_table_name_is_used_twice() -> None:
@@ -43,9 +53,10 @@ def test_no_table_name_is_used_twice() -> None:
 
 
 def test_all_tables_is_every_layer_and_nothing_else() -> None:
-    assert set(ALL_TABLES) == set(BRONZE_TABLES) | set(SILVER_TABLES)
+    assert set(ALL_TABLES) == set(BRONZE_TABLES) | set(SILVER_TABLES) | set(REFERENCE_TABLES)
     assert len(BRONZE_TABLES) == 2
     assert len(SILVER_TABLES) == 3
+    assert len(REFERENCE_TABLES) == 2
 
 
 def test_gold_has_a_schema_but_no_tables_yet() -> None:

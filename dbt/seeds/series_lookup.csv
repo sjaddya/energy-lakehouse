@@ -1,0 +1,14 @@
+filter_id,series_name,series_group,unit
+410,grid_load,load,MWh
+1223,lignite,conventional,MWh
+1225,wind_offshore,renewable,MWh
+1226,hydro,renewable,MWh
+1227,other_conventional,conventional,MWh
+1228,other_renewable,renewable,MWh
+4066,biomass,renewable,MWh
+4067,wind_onshore,renewable,MWh
+4068,solar_pv,renewable,MWh
+4069,hard_coal,conventional,MWh
+4070,pumped_storage,conventional,MWh
+4071,natural_gas,conventional,MWh
+4169,day_ahead_price_de_lu,price,EUR/MWh
