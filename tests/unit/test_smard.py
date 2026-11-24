@@ -152,3 +152,44 @@ def test_chunk_path() -> None:
     assert chunk_path(4067, 1789336800000) == (
         "/app/chart_data/4067/DE/4067_DE_hour_1789336800000.json"
     )
+
+
+def test_every_named_series_is_actually_fetched() -> None:
+    """The test that would have caught eight empty series.
+
+    A series can be named, grouped, seeded into the lookup and documented, and
+    still never be downloaded. Nothing fails when that happens: the joins work,
+    the row counts look plausible, and the answer is simply built on less data
+    than the project says it uses. This asserts the ingestion list and the naming
+    list are the same list.
+    """
+    from energy_lakehouse.silver import SERIES_NAMES
+    from energy_lakehouse.smard import PROJECT_INPUT_IDS
+
+    assert set(PROJECT_INPUT_IDS) == set(SERIES_NAMES)
+
+
+def test_no_series_is_fetched_twice() -> None:
+    from energy_lakehouse.smard import PROJECT_INPUT_IDS
+
+    assert len(set(PROJECT_INPUT_IDS)) == len(PROJECT_INPUT_IDS)
+
+
+def test_every_fetched_series_belongs_to_exactly_one_group() -> None:
+    """Total generation is a sum over groups, so an ungrouped series is invisible."""
+    from energy_lakehouse.silver import SERIES_GROUPS
+    from energy_lakehouse.smard import PROJECT_INPUT_IDS
+
+    assert set(PROJECT_INPUT_IDS) == set(SERIES_GROUPS)
+
+
+def test_generation_covers_both_renewable_and_conventional() -> None:
+    """Renewable share needs a denominator: every generation series, both sides."""
+    from energy_lakehouse.smard import (
+        CONVENTIONAL_IDS,
+        GENERATION_SERIES,
+        RENEWABLE_IDS,
+    )
+
+    assert set(RENEWABLE_IDS) | set(CONVENTIONAL_IDS) == set(GENERATION_SERIES)
+    assert not set(RENEWABLE_IDS) & set(CONVENTIONAL_IDS)

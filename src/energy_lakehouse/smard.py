@@ -53,7 +53,12 @@ CONSUMPTION_SERIES = {
 PRICE_IDS = (4169,)
 RENEWABLE_IDS = (4066, 1226, 1225, 4067, 4068, 1228)
 CONVENTIONAL_IDS = (1223, 4069, 4071, 4070, 1227)
-PROJECT_INPUT_IDS = (4067, 1225, 4068, 4169, 410)
+# Every series the project ingests. Derived from the three dictionaries above
+# rather than listed by hand: a hand-written list that is a subset of the named
+# series does not fail, it just quietly loads less than the project claims to
+# cover - which is exactly what happened here until 24.11.2026, when five of
+# the thirteen had data and the other eight had none.
+PROJECT_INPUT_IDS = (*GENERATION_SERIES, *MARKET_AREA_SERIES, *CONSUMPTION_SERIES)
 
 
 def unit_for(filter_id: int) -> str:
