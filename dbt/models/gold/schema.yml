@@ -17,6 +17,9 @@ models:
     columns:
       - name: hour_start_utc
         description: Start of the hour in UTC. The grain of this table and its unique key.
+        data_tests:
+          - not_null
+          - unique
       - name: hour_start_berlin
         description: >
           The same instant as a Europe/Berlin wall-clock timestamp. Two hours
@@ -32,8 +35,24 @@ models:
           Wholesale day-ahead price for the Germany/Luxembourg market area in
           EUR/MWh, not a retail tariff. Null where SMARD has not published the
           hour yet; negative values are normal and are not errors.
+        # Section 5 of the problem statement: -500 to 4000 EUR/MWh. This is a
+        # plausibility test, not a structural one. It does not fail when this
+        # project's code is wrong; it fails when SMARD changes what it publishes -
+        # a unit switched to kWh, or a new sentinel in place of a null. That kind
+        # of change loads perfectly and makes every chart wrong by a factor of a
+        # thousand, with nothing else in the pipeline objecting.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -500
+                max_value: 4000
+                inclusive: true
       - name: grid_load_mwh
         description: Realised grid load for the hour in MWh, SMARD series 410.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
       - name: renewable_mwh
         description: >
           Sum of the six renewable generation series for the hour in MWh.
@@ -62,10 +81,22 @@ models:
         description: >
           renewable_mwh divided by generation_mwh, 0 to 1. A share of generation,
           not of consumption: it can exceed the share of load in an export hour.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+                inclusive: true
       - name: wind_solar_share
         description: >
           wind_solar_mwh divided by generation_mwh, 0 to 1. The x-axis of the
           main chart.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+                inclusive: true
 
       - name: net_exports_mwh
         description: >
@@ -83,6 +114,8 @@ models:
           value in this hour. The counts it compares against are read from the
           seed, not written in the SQL, so adding a series cannot leave this
           flag quietly wrong.
+        data_tests:
+          - not_null
 
       - name: has_price
         description: >
@@ -135,11 +168,25 @@ models:
         description: >
           1 to 4, by combined wind and solar output. 1 is the lowest-output
           quarter of hours and 4 the highest. The grain of this table.
+        data_tests:
+          - not_null
+          - unique
+          # ntile(4) cannot produce a fifth quartile, but it produces FEWER than
+          # four if the window ever holds fewer than four hours - and a headline
+          # built from two quartiles would still render perfectly.
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
       - name: hours
         description: >
           Hours in this quartile. Only hours with a published price and a
           complete generation mix are included, so the four values sum to
           hours_in_window and not to the hours in the calendar window.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
 
       - name: wind_solar_mwh_min
         description: Lowest combined wind and solar output in the quartile; its lower boundary.
@@ -216,3 +263,10 @@ models:
           The two seven-day supporting views filter on this. Both views are
           hourly, so this selects about 168 hours and not 7 rows - a daily
           average would erase the shape of the week those views exist to show.
+
+# dashboard_hours deliberately carries no column tests. Every column in it is a column
+# of hourly_market, already tested there, and re-asserting them on a view that selects
+# from the tested table tests the warehouse rather than the project. The two things
+# that ARE new - the window flags - are asserted in
+# tests/the_windows_resolve_to_whole_days.sql, because that assertion is about counts
+# of distinct days and does not fit a column-level test.

@@ -1,0 +1,11 @@
+# dbt_utils supplies the test shapes this project would otherwise hand-write
+# ten times: a range check, a multi-column uniqueness check, an arbitrary
+# expression assertion. It is the one package here, and package-lock.yml pins
+# the exact version so a fresh clone resolves what this one resolved.
+#
+# dbt_packages/ is gitignored, so `dbt deps` has to be run after cloning. The
+# lock file is committed; the downloaded code is not.
+
+packages:
+  - package: dbt-labs/dbt_utils
+    version: [">=1.3.0", "<2.0.0"]

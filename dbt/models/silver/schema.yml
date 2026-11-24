@@ -11,11 +11,19 @@ models:
       One row per series and hour. The SMARD filter_id is resolved to a series name,
       group and unit through a left join, and Berlin calendar labels sit alongside the
       UTC hour start. Full rebuild from bronze.smard_raw.
+    data_tests:
+      # The grain promise of the table. This is the invariant the deleted notebook's
+      # duplicate_keys query checked by hand, once, after one build.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [filter_id, hour_start_utc]
     columns:
       - name: hour_start_utc
         description: >
           Start of the hour the row describes, in UTC. The join key between power and
           weather.
+        data_tests:
+          - not_null
       - name: hour_start_berlin
         description: >
           The same instant written as Berlin wall-clock time. A label, not an instant:
@@ -29,13 +37,25 @@ models:
         description: >
           Berlin hour of day, 0 to 23. See date_berlin for why it is not part of a key.
       - name: filter_id
+        data_tests:
+          - not_null
         description: >
           SMARD series id, carried unchanged from bronze.
       - name: series_name
+        # The join to series_lookup is LEFT so an unknown filter_id becomes a row with
+        # a null name rather than vanishing. This test is what turns "it has not
+        # happened" into "it cannot happen quietly".
+        data_tests:
+          - not_null
         description: >
           Human-readable series name, for example wind_onshore. Null would mean a
           filter_id the project does not know; the load check asserts it never is.
       - name: series_group
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [renewable, conventional, load, price]
         description: >
           One of renewable, conventional, price or load.
       - name: unit
@@ -59,11 +79,17 @@ models:
       appears as a null row rather than as no row at all. DWD labels the hour end, so
       timestamps are shifted back one hour to match the SMARD hour start. Full rebuild
       from bronze.dwd_raw.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [station_id, hour_start_utc]
     columns:
       - name: hour_start_utc
         description: >
           Start of the hour, UTC, already shifted back one hour from the DWD hour-end
           label so it lines up with power_hourly.
+        data_tests:
+          - not_null
       - name: hour_start_berlin
         description: >
           The same instant written as Berlin wall-clock time. A label, not an instant:
@@ -79,6 +105,8 @@ models:
       - name: station_id
         description: >
           Five-digit DWD station id, zero padded.
+        data_tests:
+          - not_null
       - name: station_name
         description: >
           Station name exactly as the DWD catalogue spells it.
@@ -89,14 +117,35 @@ models:
         description: >
           Mean wind speed in metres per second. Null where the station published nothing
           for this hour.
+        # Nulls pass a range test, which is correct here: a missing observation is a
+        # fact about the station, not a value out of range.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 120
       - name: wind_direction_deg
         description: >
           Wind direction in degrees, 0 to 360, meaning the direction the wind comes
           FROM. Must be averaged circularly, never arithmetically.
+        # Inclusive at both ends on purpose. DWD publishes 360 for due north, so a
+        # range of 0 to 359 would fail on real, correct data.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 360
+                inclusive: true
       - name: sunshine_minutes
         description: >
           Minutes of sunshine in the hour, 0 to 60. Imputed to 0.0 for the night hours
           DWD never published; see sun_is_imputed.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 60
+                inclusive: true
       - name: sun_is_imputed
         description: >
           True where sunshine_minutes was set to 0.0 because the hour is one of the six
@@ -125,6 +174,11 @@ models:
         description: >
           Start of the hour the row describes, in UTC. The join key between power and
           weather.
+        # One row per hour, so here the single column is the whole key and the plain
+        # built-in test says it.
+        data_tests:
+          - not_null
+          - unique
       - name: hour_start_berlin
         description: >
           The same instant written as Berlin wall-clock time. A label, not an instant:
@@ -149,6 +203,15 @@ models:
           sunshine_is_reliable because one hour can have eight wind stations and five
           sun stations.
       - name: wind_direction_deg_avg
+        # The circular mean is wrapped with mod(x + 360, 360), so its output has to
+        # land in the same range the inputs did. A plain arithmetic mean would also
+        # pass this - that is what the unit test in part 3 is for.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 360
+                inclusive: true
         description: >
           Circular mean of the station directions, 0 to 360. The arithmetic mean of 350
           and 10 would be 180, due south, when the wind is in fact from the north.
