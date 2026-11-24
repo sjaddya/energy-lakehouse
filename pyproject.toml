@@ -51,6 +51,13 @@ python_version = "3.12"
 strict = true
 files = ["src", "tests"]
 
+# PyYAML ships no type hints. It arrives as a dbt dependency and is used in
+# exactly one test, so a stub package would be more moving parts than the one
+# call is worth.
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
 testpaths = ["tests"]

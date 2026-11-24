@@ -1,0 +1,171 @@
+version: 2
+
+# These descriptions are the table and column comments a14 set by hand in a notebook.
+# dbt rebuilds every silver table with CREATE OR REPLACE TABLE, which drops comments,
+# so they have to live here: persist_docs writes them back onto Unity Catalog after
+# each run. This file is now the source the data dictionary is generated from.
+
+models:
+  - name: power_hourly
+    description: >
+      One row per series and hour. The SMARD filter_id is resolved to a series name,
+      group and unit through a left join, and Berlin calendar labels sit alongside the
+      UTC hour start. Full rebuild from bronze.smard_raw.
+    columns:
+      - name: hour_start_utc
+        description: >
+          Start of the hour the row describes, in UTC. The join key between power and
+          weather.
+      - name: hour_start_berlin
+        description: >
+          The same instant written as Berlin wall-clock time. A label, not an instant:
+          on the October clock change two different UTC hours carry the same Berlin
+          label.
+      - name: date_berlin
+        description: >
+          Berlin calendar date. Note that (date_berlin, hour_of_day_berlin) is NOT a
+          unique key: local hour 2 occurs twice on the October clock-change date.
+      - name: hour_of_day_berlin
+        description: >
+          Berlin hour of day, 0 to 23. See date_berlin for why it is not part of a key.
+      - name: filter_id
+        description: >
+          SMARD series id, carried unchanged from bronze.
+      - name: series_name
+        description: >
+          Human-readable series name, for example wind_onshore. Null would mean a
+          filter_id the project does not know; the load check asserts it never is.
+      - name: series_group
+        description: >
+          One of renewable, conventional, price or load.
+      - name: unit
+        description: >
+          MWh for every series except the day-ahead price, which is EUR/MWh.
+      - name: value
+        description: >
+          The published value, carried unchanged from bronze. Null where SMARD has not
+          published yet.
+      - name: load_id
+        description: >
+          UUID of the notebook run that wrote this row.
+      - name: fetched_at
+        description: >
+          UTC time the run started. Freshness is measured against max(fetched_at), never
+          against now(): the two answer different questions.
+
+  - name: weather_station_hourly
+    description: >
+      One row per station and hour on a complete hourly spine, so a missing observation
+      appears as a null row rather than as no row at all. DWD labels the hour end, so
+      timestamps are shifted back one hour to match the SMARD hour start. Full rebuild
+      from bronze.dwd_raw.
+    columns:
+      - name: hour_start_utc
+        description: >
+          Start of the hour, UTC, already shifted back one hour from the DWD hour-end
+          label so it lines up with power_hourly.
+      - name: hour_start_berlin
+        description: >
+          The same instant written as Berlin wall-clock time. A label, not an instant:
+          on the October clock change two different UTC hours carry the same Berlin
+          label.
+      - name: date_berlin
+        description: >
+          Berlin calendar date. Note that (date_berlin, hour_of_day_berlin) is NOT a
+          unique key: local hour 2 occurs twice on the October clock-change date.
+      - name: hour_of_day_berlin
+        description: >
+          Berlin hour of day, 0 to 23. See date_berlin for why it is not part of a key.
+      - name: station_id
+        description: >
+          Five-digit DWD station id, zero padded.
+      - name: station_name
+        description: >
+          Station name exactly as the DWD catalogue spells it.
+      - name: state
+        description: >
+          German federal state the station sits in.
+      - name: wind_speed_ms
+        description: >
+          Mean wind speed in metres per second. Null where the station published nothing
+          for this hour.
+      - name: wind_direction_deg
+        description: >
+          Wind direction in degrees, 0 to 360, meaning the direction the wind comes
+          FROM. Must be averaged circularly, never arithmetically.
+      - name: sunshine_minutes
+        description: >
+          Minutes of sunshine in the hour, 0 to 60. Imputed to 0.0 for the night hours
+          DWD never published; see sun_is_imputed.
+      - name: sun_is_imputed
+        description: >
+          True where sunshine_minutes was set to 0.0 because the hour is one of the six
+          night hours (UTC 0, 1, 20, 21, 22, 23) that DWD did not publish before August
+          2026. Every other missing value is left null.
+      - name: wind_quality
+        description: >
+          DWD quality level for the wind measurement, carried from bronze.
+      - name: sun_quality
+        description: >
+          DWD quality level for the sunshine measurement, carried from bronze.
+      - name: fetched_at
+        description: >
+          The most recent fetch that touched this station-hour. Null means the hour
+          never arrived in any file. load_id is deliberately absent here: a station-hour
+          is built from two archives that can be loaded by different runs, so no single
+          run id describes the whole row.
+
+  - name: weather_germany_hourly
+    description: >
+      One row per hour: an unweighted mean across the eight stations, with the number of
+      contributing stations and a reliability flag for each measure. Wind direction uses
+      a circular mean. Full rebuild from silver.weather_station_hourly.
+    columns:
+      - name: hour_start_utc
+        description: >
+          Start of the hour the row describes, in UTC. The join key between power and
+          weather.
+      - name: hour_start_berlin
+        description: >
+          The same instant written as Berlin wall-clock time. A label, not an instant:
+          on the October clock change two different UTC hours carry the same Berlin
+          label.
+      - name: date_berlin
+        description: >
+          Berlin calendar date. Note that (date_berlin, hour_of_day_berlin) is NOT a
+          unique key: local hour 2 occurs twice on the October clock-change date.
+      - name: hour_of_day_berlin
+        description: >
+          Berlin hour of day, 0 to 23. See date_berlin for why it is not part of a key.
+      - name: wind_speed_ms_avg
+        description: >
+          Unweighted mean wind speed across the stations that reported this hour.
+      - name: wind_stations
+        description: >
+          How many of the eight stations contributed a wind reading.
+      - name: wind_is_reliable
+        description: >
+          True when at least six stations reported wind. Kept separate from
+          sunshine_is_reliable because one hour can have eight wind stations and five
+          sun stations.
+      - name: wind_direction_deg_avg
+        description: >
+          Circular mean of the station directions, 0 to 360. The arithmetic mean of 350
+          and 10 would be 180, due south, when the wind is in fact from the north.
+      - name: sunshine_minutes_avg
+        description: >
+          Unweighted mean sunshine minutes across the stations that reported this hour.
+      - name: sunshine_stations
+        description: >
+          How many of the eight stations contributed a sunshine value.
+      - name: sunshine_is_reliable
+        description: >
+          True when at least six stations reported sunshine.
+      - name: sunshine_imputed_stations
+        description: >
+          How many of the contributing stations had sunshine imputed to zero for this
+          hour, so an average built mostly from imputed zeros can be told apart from a
+          measured one.
+      - name: fetched_at
+        description: >
+          The most recent fetch that touched any station-hour inside this hour.

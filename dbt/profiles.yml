@@ -18,3 +18,9 @@ energy_lakehouse:
       catalog: energy
       schema: silver
       threads: 4
+      # Every Berlin label in silver is derived with from_utc_timestamp, and
+      # hour() and date() then read the result in the session timezone. The
+      # warehouse happens to be UTC today; pinning it here means a change to
+      # the warehouse default cannot quietly shift date_berlin by an hour.
+      server_side_parameters:
+        TIMEZONE: UTC

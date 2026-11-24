@@ -20,6 +20,13 @@ models:
     # full on each run. This is dbt's default materialisation and it is exactly
     # what the notebooks already did with CREATE OR REPLACE TABLE.
     +materialized: table
+    # Every rebuild is a CREATE OR REPLACE TABLE, which drops the table and
+    # column comments. persist_docs writes the descriptions in schema.yml back
+    # onto Unity Catalog after each run, so the documentation survives the run
+    # that would otherwise erase it.
+    +persist_docs:
+      relation: true
+      columns: true
 
 seeds:
   energy_lakehouse:
@@ -39,3 +46,13 @@ seeds:
         station_id: string
         station_name: string
         state: string
+
+# Two numbers the SQL needs that are decisions, not data. They are also defined
+# in src/energy_lakehouse/silver.py, which the Python ingestion uses, and
+# tests/unit/test_dbt_vars.py fails if the two copies ever disagree.
+vars:
+  # The six UTC hours DWD did not publish sunshine for before August 2026.
+  night_hours_utc: [0, 1, 20, 21, 22, 23]
+  # How many of the eight stations an hourly average needs before it may be
+  # called reliable. Two coastal stations are not Germany.
+  min_stations: 6
