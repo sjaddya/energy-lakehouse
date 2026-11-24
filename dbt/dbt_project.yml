@@ -62,3 +62,7 @@ vars:
   # How many of the eight stations an hourly average needs before it may be
   # called reliable. Two coastal stations are not Germany.
   min_stations: 6
+  # The window the headline number describes. It has no Python twin because no
+  # Python reads it: it is a property of one gold model's claim, and the model
+  # publishes the window bounds it resolved to alongside the number.
+  headline_days: 90

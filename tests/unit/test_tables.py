@@ -60,7 +60,7 @@ def test_all_tables_is_every_layer_and_nothing_else() -> None:
     )
     assert len(BRONZE_TABLES) == 2
     assert len(SILVER_TABLES) == 3
-    assert len(GOLD_TABLES) == 1
+    assert len(GOLD_TABLES) == 2
     assert len(REFERENCE_TABLES) == 2
 
 
