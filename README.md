@@ -97,6 +97,26 @@ The commands are written as `uv run python -m <tool>` rather than `uv run <tool>
 Windows with Smart App Control enabled, the generated `.exe` launchers inside a virtual
 environment are blocked, while running the module is not.
 
+### Building the tables
+
+Ingestion runs as Databricks notebooks. Everything downstream of bronze is dbt, against a
+Databricks SQL warehouse. With `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH` and
+`DATABRICKS_TOKEN` set in the environment:
+
+```bash
+uv run python -m dbt.cli.main debug --project-dir dbt --profiles-dir dbt   # check the connection
+uv run python -m dbt.cli.main seed  --project-dir dbt --profiles-dir dbt   # load the lookups
+uv run python -m dbt.cli.main run   --project-dir dbt --profiles-dir dbt   # build silver
+```
+
+Every model is materialised as a table and rebuilt in full, because silver is a deterministic
+function of bronze. Rebuilding drops Unity Catalog comments, so `persist_docs` reapplies the
+descriptions in `dbt/models/silver/schema.yml` after each run; those descriptions are what
+`docs/data-dictionary.md` is generated from.
+
+On Windows, run dbt from PowerShell rather than Git Bash: Git Bash rewrites environment
+variables whose value starts with `/`, which turns `DATABRICKS_HTTP_PATH` into a local path.
+
 ## Testing
 
 - `uv run python -m pytest` — unit tests, no network; external APIs are mocked with respx
