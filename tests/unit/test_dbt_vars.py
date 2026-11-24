@@ -28,7 +28,7 @@ DBT_PROJECT = Path(__file__).resolve().parents[2] / "dbt" / "dbt_project.yml"
 MIRRORED_IN_PYTHON = {"night_hours_utc", "min_stations"}
 
 # Variables only SQL reads. Listing them is the decision being recorded.
-SQL_ONLY = {"headline_days"}
+SQL_ONLY = {"headline_days", "recent_days"}
 
 
 def dbt_vars() -> dict[str, Any]:
@@ -65,3 +65,12 @@ def test_the_headline_window_is_a_whole_number_of_days() -> None:
     days = dbt_vars()["headline_days"]
     assert isinstance(days, int)
     assert days >= 7
+
+
+def test_the_recent_window_fits_inside_the_headline_window() -> None:
+    # The seven-day views are meant to show the shape of one week inside the
+    # period the headline describes. A recent window longer than the headline
+    # window would put hours on the supporting charts that the headline number
+    # never saw.
+    assert isinstance(dbt_vars()["recent_days"], int)
+    assert 1 <= dbt_vars()["recent_days"] <= dbt_vars()["headline_days"]

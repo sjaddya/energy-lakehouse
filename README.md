@@ -6,9 +6,10 @@
 > weather produced them? An hourly pipeline over Bundesnetzagentur (SMARD) market data and
 > Deutscher Wetterdienst (DWD) weather observations.
 
-**Status:** in development. Ingestion and the silver layer are built and running on Databricks
+**Status:** in development. Ingestion, silver and gold are built and running on Databricks
 over an `energy` catalog — see [`docs/data-dictionary.md`](docs/data-dictionary.md) for every
-table and column. Gold, orchestration and the dashboard are next; no results are published yet.
+table and column. Orchestration, data tests and the dashboard are next; no results are
+published yet.
 
 ---
 
@@ -35,7 +36,7 @@ and which weather conditions produced those hours?
 | Ingestion | SMARD: hourly JSON in weekly chunks, re-fetching the last 48 h because values are revised. DWD: one ZIP per station, downloaded whole and merged | Python, httpx, retries with backoff |
 | Bronze | Raw payloads exactly as published, plus `load_id`, `fetched_at` and the source watermark | Delta tables, Databricks Free Edition |
 | Silver | UTC, typed, deduplicated; `-999` and `null` become null; every DWD timestamp shifted back one hour | Delta, dbt |
-| Gold | Hourly fact joining price, generation mix, renewable share and weather — inner join, realised hours only | dbt |
+| Gold | Hourly fact joining price, generation mix, renewable share and weather; the quartile comparison that answers the question; one view that resolves the dashboard's date windows | dbt |
 | Serving | Parquet export to a dashboard with the headline number, the quartile chart and three freshness indicators | Streamlit |
 | Orchestration & CI/CD | Hourly job with retries and failure alerts; data tests that fail the run; a monitoring table of rows, duration and failures | Lakeflow / GitHub Actions |
 
@@ -74,10 +75,14 @@ Written up in [`docs/decisions/`](docs/decisions/).
   whether a timestamp labels the start or the end of its hour, so it was measured:
   correlating sunshine against solar generation peaked at a one-hour shift (0.846, against
   0.803 at zero and 0.706 the other way). DWD stamps the hour's end; SMARD stamps its start.
-- **The gold join is inner, on realised hours only.** The day-ahead price is published
-  about 33 hours ahead of real time while generation arrives 1.5 hours behind and weather
-  about 1.5 days behind, so a naive join would average over hours that have a price and no
-  generation.
+- **The gold join to weather is left, not inner, and the hours it keeps are flagged.** The
+  three sources arrive at different times: the day-ahead price about 33 hours ahead of real
+  time, generation 1.5 hours behind, weather about 1.5 days behind. An inner join across all
+  three would have been the safe default when power covered fewer hours than weather. It no
+  longer does — power covers 13,441 hours and weather 13,200 of them — so an inner join would
+  discard 241 hours of price and generation to avoid a null wind speed the headline number
+  never reads. Instead every row carries `has_price`, `has_weather` and `mix_is_complete`, and
+  each model drops only what its own claim cannot be made without.
 - **Sample data is not committed.** It is public, versioned at source, and large. The
   station IDs, URL patterns and row counts in `docs/` are enough to reproduce it.
 
@@ -106,13 +111,23 @@ Databricks SQL warehouse. With `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH` and
 ```bash
 uv run python -m dbt.cli.main debug --project-dir dbt --profiles-dir dbt   # check the connection
 uv run python -m dbt.cli.main seed  --project-dir dbt --profiles-dir dbt   # load the lookups
-uv run python -m dbt.cli.main run   --project-dir dbt --profiles-dir dbt   # build silver
+uv run python -m dbt.cli.main run   --project-dir dbt --profiles-dir dbt   # build silver + gold
 ```
 
-Every model is materialised as a table and rebuilt in full, because silver is a deterministic
-function of bronze. Rebuilding drops Unity Catalog comments, so `persist_docs` reapplies the
-descriptions in `dbt/models/silver/schema.yml` after each run; those descriptions are what
-`docs/data-dictionary.md` is generated from.
+Models are materialised as tables and rebuilt in full, because each layer is a deterministic
+function of the one below it. The exception is `gold.dashboard_hours`, a view: it adds no facts
+to `gold.hourly_market`, only which date window each hour falls in, and materialising a filter
+buys no speed while introducing something that can go stale.
+
+Rebuilding a table drops its Unity Catalog comments, so `persist_docs` reapplies the
+descriptions in `dbt/models/silver/schema.yml` and `dbt/models/gold/schema.yml` after each run;
+those descriptions are what `docs/data-dictionary.md` is generated from.
+
+Two date windows are declared once, as dbt variables in `dbt_project.yml`: `headline_days`
+(90) and `recent_days` (7). Both are measured back from the newest Berlin date in the data
+rather than from today, so that a pipeline which stopped loading cannot silently shrink the
+period a published number describes. `gold.dashboard_hours` resolves them and publishes the
+anchor it used.
 
 On Windows, run dbt from PowerShell rather than Git Bash: Git Bash rewrites environment
 variables whose value starts with `/`, which turns `DATABRICKS_HTTP_PATH` into a local path.
@@ -121,7 +136,8 @@ variables whose value starts with `/`, which turns `DATABRICKS_HTTP_PATH` into a
 
 - `uv run python -m pytest` — unit tests, no network; external APIs are mocked with respx
 - `uv run python -m pytest --run-integration` — also runs tests against the live APIs
-- Data-quality tests (dbt) are added with the gold models
+- Data-quality tests (dbt) are the next step; the gold models carry the completeness flags
+  they will assert on
 
 ## Limitations and next steps
 

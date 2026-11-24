@@ -66,3 +66,6 @@ vars:
   # Python reads it: it is a property of one gold model's claim, and the model
   # publishes the window bounds it resolved to alongside the number.
   headline_days: 90
+  # The window the two seven-day supporting views describe. Same anchor,
+  # same reason, different claim.
+  recent_days: 7

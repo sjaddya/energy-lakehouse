@@ -188,3 +188,31 @@ models:
         description: >
           Hours across all four quartiles. Compare with window_days times 24 to
           see how many hours the price and mix filters removed.
+
+  - name: dashboard_hours
+    description: >
+      hourly_market with window membership added, and the only place the
+      dashboard's date windows are defined. Every column of hourly_market passes
+      through unchanged; the three added here say which window an hour falls in
+      and what the windows were anchored on. A view, not a table, because it
+      holds no facts of its own - resolving the windows once is the whole point,
+      so that the main chart cannot plot a different 90 days than the headline
+      number printed beneath it describes.
+    columns:
+      - name: latest_day
+        description: >
+          The newest Berlin date in hourly_market, and the anchor both windows
+          are measured back from. Published rather than hidden: an anchor nobody
+          can see is an anchor nobody can question, and a pipeline that stopped
+          loading shows up here first.
+      - name: in_headline_window
+        description: >
+          True for the last headline_days Berlin dates, inclusive of both ends.
+          The main chart filters on this, so it plots exactly the hours
+          price_by_renewable_quartile measured.
+      - name: in_recent_window
+        description: >
+          True for the last recent_days Berlin dates, inclusive of both ends.
+          The two seven-day supporting views filter on this. Both views are
+          hourly, so this selects about 168 hours and not 7 rows - a daily
+          average would erase the shape of the week those views exist to show.
