@@ -6,6 +6,7 @@ from energy_lakehouse.tables import (
     BRONZE_TABLES,
     CATALOG,
     GOLD_SCHEMA,
+    GOLD_TABLES,
     REFERENCE_SCHEMA,
     REFERENCE_TABLES,
     SCHEMAS,
@@ -38,6 +39,7 @@ def test_the_layers_are_separate_schemas() -> None:
 def test_each_table_sits_in_the_layer_it_belongs_to() -> None:
     assert all(name.startswith(f"{BRONZE_SCHEMA}.") for name in BRONZE_TABLES)
     assert all(name.startswith(f"{SILVER_SCHEMA}.") for name in SILVER_TABLES)
+    assert all(name.startswith(f"{GOLD_SCHEMA}.") for name in GOLD_TABLES)
     assert all(name.startswith(f"{REFERENCE_SCHEMA}.") for name in REFERENCE_TABLES)
 
 
@@ -53,13 +55,18 @@ def test_no_table_name_is_used_twice() -> None:
 
 
 def test_all_tables_is_every_layer_and_nothing_else() -> None:
-    assert set(ALL_TABLES) == set(BRONZE_TABLES) | set(SILVER_TABLES) | set(REFERENCE_TABLES)
+    assert set(ALL_TABLES) == (
+        set(BRONZE_TABLES) | set(SILVER_TABLES) | set(GOLD_TABLES) | set(REFERENCE_TABLES)
+    )
     assert len(BRONZE_TABLES) == 2
     assert len(SILVER_TABLES) == 3
+    assert len(GOLD_TABLES) == 1
     assert len(REFERENCE_TABLES) == 2
 
 
-def test_gold_has_a_schema_but_no_tables_yet() -> None:
-    # a16 adds them. An empty gold schema now is a statement, not an oversight.
+def test_gold_holds_the_tables_the_dashboard_reads() -> None:
+    # Until a16 this asserted that gold was empty, which was a statement rather
+    # than an oversight. a16 fills it, so the assertion is inverted rather than
+    # deleted: an empty gold layer is now the thing that would be wrong.
     assert GOLD_SCHEMA in SCHEMAS
-    assert not [name for name in ALL_TABLES if name.startswith(f"{GOLD_SCHEMA}.")]
+    assert [name for name in ALL_TABLES if name.startswith(f"{GOLD_SCHEMA}.")] == list(GOLD_TABLES)

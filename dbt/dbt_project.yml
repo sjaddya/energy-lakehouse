@@ -28,6 +28,12 @@ models:
       relation: true
       columns: true
 
+    gold:
+      # The profile's schema is silver, because that is where most models live.
+      # Gold says where it goes explicitly, and the generate_schema_name macro
+      # makes this the literal schema name rather than silver_gold.
+      +schema: gold
+
 seeds:
   energy_lakehouse:
     # Lookups are not a medallion layer, so they get their own schema. The

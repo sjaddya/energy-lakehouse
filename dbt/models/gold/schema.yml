@@ -1,0 +1,123 @@
+# Descriptions for the gold models. They live here rather than in the SQL
+# because every run is a CREATE OR REPLACE TABLE, which drops the comments
+# Unity Catalog holds; persist_docs in dbt_project.yml writes these back after
+# each build, so the documentation survives the run that would erase it.
+#
+# Data tests belong in a17 and are deliberately absent here.
+
+version: 2
+
+models:
+  - name: hourly_market
+    description: >
+      One row per hour: the day-ahead price, the generation mix, net exports and
+      the country-level weather, joined on the hour. This is the table the
+      dashboard reads. The weather join is LEFT, so an hour with power but no
+      weather is kept with has_weather false rather than dropped.
+    columns:
+      - name: hour_start_utc
+        description: Start of the hour in UTC. The grain of this table and its unique key.
+      - name: hour_start_berlin
+        description: >
+          The same instant as a Europe/Berlin wall-clock timestamp. Two hours
+          share a label on the October changeover and one label is missing in
+          March; hour_start_utc is the key for exactly that reason.
+      - name: date_berlin
+        description: Berlin calendar date of the hour, for grouping a day the way a reader means it.
+      - name: hour_of_day_berlin
+        description: Berlin hour of day, 0 to 23, for an hour-of-day profile.
+
+      - name: day_ahead_price_eur_mwh
+        description: >
+          Wholesale day-ahead price for the Germany/Luxembourg market area in
+          EUR/MWh, not a retail tariff. Null where SMARD has not published the
+          hour yet; negative values are normal and are not errors.
+      - name: grid_load_mwh
+        description: Realised grid load for the hour in MWh, SMARD series 410.
+      - name: renewable_mwh
+        description: >
+          Sum of the six renewable generation series for the hour in MWh.
+          Trustworthy only where mix_is_complete is true.
+      - name: conventional_mwh
+        description: >
+          Sum of the five conventional generation series for the hour in MWh.
+          Trustworthy only where mix_is_complete is true.
+      - name: generation_mwh
+        description: >
+          renewable_mwh plus conventional_mwh. Null when either side is null, so
+          that an hour with a partial mix reports no total at all.
+
+      - name: wind_onshore_mwh
+        description: Realised onshore wind generation for the hour in MWh, SMARD series 4067.
+      - name: wind_offshore_mwh
+        description: Realised offshore wind generation for the hour in MWh, SMARD series 1225.
+      - name: solar_pv_mwh
+        description: Realised photovoltaic generation for the hour in MWh, SMARD series 4068.
+      - name: wind_solar_mwh
+        description: >
+          Combined wind and solar output for the hour in MWh. This is what the
+          headline number splits into quartiles.
+
+      - name: renewable_share
+        description: >
+          renewable_mwh divided by generation_mwh, 0 to 1. A share of generation,
+          not of consumption: it can exceed the share of load in an export hour.
+      - name: wind_solar_share
+        description: >
+          wind_solar_mwh divided by generation_mwh, 0 to 1. The x-axis of the
+          main chart.
+
+      - name: net_exports_mwh
+        description: >
+          generation_mwh minus grid_load_mwh. This difference is dominated by
+          cross-border trade, so it is labelled net exports and never as wasted
+          energy.
+
+      - name: renewable_series_realised
+        description: How many of the six renewable series actually had a value in this hour.
+      - name: conventional_series_realised
+        description: How many of the five conventional series actually had a value in this hour.
+      - name: mix_is_complete
+        description: >
+          True when every generation series the series_lookup seed names had a
+          value in this hour. The counts it compares against are read from the
+          seed, not written in the SQL, so adding a series cannot leave this
+          flag quietly wrong.
+
+      - name: has_price
+        description: >
+          False where SMARD has padded the hour ahead of publication. The
+          headline number filters on this; the mix charts do not need to.
+      - name: is_cheap_or_negative_price
+        description: >
+          Price at or below zero. The subject of supporting view 3, not a value
+          to be filtered out. Null where the price is null.
+
+      - name: has_weather
+        description: >
+          False for the hours where power data exists and the DWD station data
+          does not. These hours keep their price and mix; only the weather
+          columns are null.
+      - name: wind_speed_ms_avg
+        description: Unweighted mean wind speed across the reporting stations, m/s.
+      - name: wind_direction_deg_avg
+        description: >
+          Vector mean wind direction across the reporting stations, 0 to 360
+          degrees. Averaged as unit vectors, because the arithmetic mean of 350
+          and 10 is due south.
+      - name: sunshine_minutes_avg
+        description: Unweighted mean sunshine duration across the reporting stations, minutes per hour.
+      - name: wind_is_reliable
+        description: >
+          True when at least min_stations of the eight stations reported wind.
+          An average over two coastal stations is not Germany.
+      - name: sunshine_is_reliable
+        description: >
+          True when at least min_stations of the eight stations reported
+          sunshine. Separate from wind_is_reliable because one hour can have
+          eight wind stations and five sunshine stations.
+
+      - name: fetched_at
+        description: >
+          Latest fetch time among the silver rows behind this hour. Lineage, not
+          business data.
